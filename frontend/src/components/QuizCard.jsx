@@ -38,6 +38,7 @@ export default function QuizCard({
   const audioChunksRef = useRef([])
   const [recording, setRecording] = useState(false)
   const recordingRef = useRef(false)
+  const isTouchDevice = window.matchMedia('(pointer: coarse)').matches
 
   // Keyboard shortcut: hold Ctrl+Space to record (works even when input is focused)
   useEffect(() => {
@@ -271,25 +272,24 @@ export default function QuizCard({
               <>
                 <button
                   type="submit"
-                  className="flex-1 bg-pink-600 hover:bg-pink-500 text-white font-semibold py-2.5 rounded-xl transition-all active:scale-95"
+                  className="flex-1 bg-pink-600 hover:bg-pink-500 text-white font-semibold py-2.5 rounded-xl transition-all active:scale-95 select-none"
                 >
                   Submit
                 </button>
                 <button
                   type="button"
-                  onMouseDown={handleMicStart}
-                  onMouseUp={handleMicStop}
-                  onTouchStart={handleMicStart}
-                  onTouchEnd={handleMicStop}
+                  onClick={isTouchDevice ? (recording ? handleMicStop : handleMicStart) : undefined}
+                  onMouseDown={!isTouchDevice ? handleMicStart : undefined}
+                  onMouseUp={!isTouchDevice ? handleMicStop : undefined}
                   disabled={transcribing}
-                  className={`px-4 py-2.5 rounded-xl font-medium transition-all active:scale-95 ${
+                  className={`px-4 py-2.5 rounded-xl font-medium transition-all active:scale-95 select-none ${
                     recording
                       ? 'bg-red-600 text-white animate-pulse'
                       : transcribing
                       ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                       : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
                   }`}
-                  title="Hold to record (or hold Ctrl+Space)"
+                  title={isTouchDevice ? 'Tap to record / tap to stop' : 'Hold to record (or hold Ctrl+Space)'}
                 >
                   {transcribing ? (
                     <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">

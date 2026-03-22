@@ -742,7 +742,7 @@ export default function QuizPage({ mode }) {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
-      <header className="bg-gray-800 border-b border-gray-700 px-4 py-3">
+      <header className="bg-gray-800 border-b border-gray-700 px-4 py-3" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-400 hover:text-gray-200 transition-colors text-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
