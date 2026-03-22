@@ -5,6 +5,7 @@ import MnemonicPanel from '../components/MnemonicPanel.jsx'
 import UndoButton from '../components/UndoButton.jsx'
 import * as wanakana from 'wanakana'
 import { checkMeaning, checkReading } from '../utils/answerCheck.js'
+import { showToast } from '../utils/toast.js'
 import { renderMarkup } from '../utils/markup.jsx'
 
 const API = import.meta.env.VITE_API_BASE_URL
@@ -362,6 +363,7 @@ export default function QuizPage({ mode }) {
       })
     } catch (err) {
       console.error('Failed to submit review:', err)
+      showToast(`Failed to submit review: ${err.message}`)
     }
   }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as wanakana from 'wanakana'
+import { showToast } from '../utils/toast.js'
 
 const API = import.meta.env.VITE_API_BASE_URL
 
@@ -126,6 +127,7 @@ export default function QuizCard({
       setRecording(true)
     } catch (err) {
       console.error('Microphone access denied:', err)
+      showToast(`Microphone error: ${err.message}`)
     }
   }
 
@@ -164,6 +166,7 @@ export default function QuizCard({
       }
     } catch (err) {
       console.error('Transcription failed:', err)
+      showToast(`Transcription failed: ${err.message}`)
     } finally {
       setTranscribing(false)
     }
