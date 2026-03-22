@@ -225,6 +225,7 @@ export default function QuizCard({
                 else setInputValue(e.target.value)
               }}
               disabled={isAnswered}
+              autoFocus
               placeholder={questionType === 'meaning' ? 'Enter meaning...' : 'Enter reading...'}
               autoCapitalize="none"
               autoCorrect="off"
