@@ -46,7 +46,7 @@ export function checkMeaning(input, item) {
  * Normalizes both input and accepted readings to hiragana before comparing.
  */
 export function checkReading(input, item) {
-  const normalized = input.trim()
+  const normalized = input.trim().toLowerCase()
   if (!normalized) return { correct: false }
 
   const inputHiragana = wanakana.toHiragana(normalized)

@@ -116,7 +116,8 @@ export default function QuizCard({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioChunksRef.current = []
-      const mr = new MediaRecorder(stream)
+      const mimeType = ['audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || ''
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       mediaRecorderRef.current = mr
       mr.ondataavailable = e => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
@@ -140,9 +141,11 @@ export default function QuizCard({
       mr.stream?.getTracks().forEach(t => t.stop())
     })
 
-    const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+    const mimeType = mr.mimeType || 'audio/webm'
+    const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+    const blob = new Blob(audioChunksRef.current, { type: mimeType })
     const formData = new FormData()
-    formData.append('file', blob, 'recording.webm')
+    formData.append('file', blob, `recording.${ext}`)
     formData.append('language', questionType === 'reading' ? 'ja' : 'en')
 
     try {
