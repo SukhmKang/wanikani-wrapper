@@ -46,17 +46,3 @@
   30% { background-color: #dc2626; }
   100% { background-color: inherit; }
 }
-
-/* Bunpro furigana: click-to-reveal */
-.bp-word rt {
-  pointer-events: none;
-}
-
-.bp-word {
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-decoration-color: #4b5563;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-

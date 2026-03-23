@@ -53,12 +53,6 @@ export default function Dashboard() {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-12">
-          <button
-            onClick={() => navigate('/')}
-            className="text-gray-500 hover:text-gray-300 text-sm mb-6 flex items-center gap-1 mx-auto transition-colors"
-          >
-            ← Back
-          </button>
           <h1 className="text-4xl font-bold text-white mb-2">WaniKani</h1>
           <div className="flex items-center justify-center gap-3 mt-2">
             <p className="text-gray-400 text-lg">Personal Review Client</p>
@@ -111,7 +105,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <button
-                onClick={() => navigate('/wanikani/reviews')}
+                onClick={() => navigate('/reviews')}
                 disabled={reviewCount === 0}
                 className={`w-full py-3 rounded-xl font-semibold text-lg transition-all ${
                   reviewCount > 0
@@ -137,7 +131,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <button
-                onClick={() => navigate('/wanikani/lessons')}
+                onClick={() => navigate('/lessons')}
                 disabled={lessonCount === 0}
                 className={`w-full py-3 rounded-xl font-semibold text-lg transition-all ${
                   lessonCount > 0
