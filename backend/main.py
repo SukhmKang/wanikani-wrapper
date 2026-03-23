@@ -577,6 +577,163 @@ async def transcribe(
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
 
+# ---------------------------------------------------------------------------
+# Bunpro API
+# ---------------------------------------------------------------------------
+
+BUNPRO_API_BASE = "https://api.bunpro.jp/api/frontend"
+
+
+def _bunpro_headers() -> dict:
+    token = os.getenv("BUNPRO_API_TOKEN", "")
+    return {
+        "Authorization": f"Token token={token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+
+def _parse_bunpro_item(attempt: dict) -> dict | None:
+    data = attempt.get("data", {})
+    attrs = data.get("attributes", {})
+    included = attempt.get("included", [])
+    sq = next((i for i in included if i.get("type") == "study_question"), None)
+    if not sq:
+        return None
+    sq_attrs = sq.get("attributes", {})
+    return {
+        "review_id": int(data["id"]),
+        "reviewable_type": attrs.get("reviewable_type", ""),
+        "streak": attrs.get("streak", 0),
+        "accuracy": attrs.get("accuracy", 0),
+        "study_question": {
+            "id": int(sq["id"]),
+            "content": sq_attrs.get("content", ""),
+            "answer": sq_attrs.get("answer", ""),
+            "alternate_grammar": sq_attrs.get("alternate_grammar") or [],
+            "kanji_answer": sq_attrs.get("kanji_answer", ""),
+            "kanji_alt_grammar": sq_attrs.get("kanji_alt_grammar") or [],
+            "translation": sq_attrs.get("translation", ""),
+            "nuance": sq_attrs.get("nuance", ""),
+            "nuance_translation": sq_attrs.get("nuance_translation", ""),
+            "male_audio_url": sq_attrs.get("male_audio_url", ""),
+            "female_audio_url": sq_attrs.get("female_audio_url", ""),
+            "level": sq_attrs.get("level", ""),
+        },
+    }
+
+
+@app.get("/api/bunpro/due")
+async def bunpro_due() -> dict:
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(f"{BUNPRO_API_BASE}/user/due", headers=_bunpro_headers())
+        if not r.is_success:
+            raise HTTPException(status_code=r.status_code, detail=r.text)
+        return r.json()
+
+
+@app.get("/api/bunpro/queue")
+async def bunpro_queue() -> dict:
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(f"{BUNPRO_API_BASE}/reviews/quiz_index", headers=_bunpro_headers())
+        if not r.is_success:
+            raise HTTPException(status_code=r.status_code, detail=r.text)
+        data = r.json()
+        session_id = data.get("review_session_id")
+        attempts = data.get("pending_attempt", [])
+        items = [_parse_bunpro_item(a) for a in attempts]
+        items = [i for i in items if i is not None]
+        return {"review_session_id": session_id, "items": items}
+
+
+class BunproUpdateBody(BaseModel):
+    review_session_id: int
+    correct: bool
+
+
+class BunproAnalyzeBody(BaseModel):
+    user_answer: str
+    correct_answer: str
+    sentence: str
+    translation: str
+    reviewable_type: str = ""  # "GrammarPoint" | "Vocabulary" | ""
+    nuance_translation: str = ""
+
+
+def _strip_html(text: str) -> str:
+    import re
+    return re.sub(r'<[^>]+>', '', text or '')
+
+
+@app.post("/api/bunpro/analyze")
+async def bunpro_analyze(body: BunproAnalyzeBody) -> dict:
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not anthropic_key:
+        raise HTTPException(status_code=503, detail="AI not configured")
+
+    import re
+    clean_sentence = re.sub(r"<span[^>]*study-area-input[^>]*>.*?</span>", f"[{body.correct_answer}]", body.sentence, flags=re.IGNORECASE)
+    clean_sentence = _strip_html(clean_sentence)
+    clean_translation = _strip_html(body.translation)
+
+    is_vocab = "vocab" in body.reviewable_type.lower()
+    item_kind = "vocabulary word" if is_vocab else "grammar pattern"
+    confusion_label = "similar-sounding words or kanji" if is_vocab else "similar grammar patterns"
+
+    prompt = (
+        f"A Japanese learner is reviewing {item_kind}s on Bunpro (SRS flashcard app).\n\n"
+        f"Sentence (correct answer filled in): {clean_sentence}\n"
+        f"English translation: {clean_translation}\n"
+        f"Correct answer: {body.correct_answer}\n"
+        f"Learner's answer: {body.user_answer}\n"
+    )
+    if body.nuance_translation:
+        prompt += f"Explanation: {_strip_html(body.nuance_translation)}\n"
+
+    prompt += (
+        f"\nPlease address these 3 things concisely (keep total response under 150 words):\n"
+        f"1. Is the learner's answer actually valid/natural in this context? (yes/no and brief reason)\n"
+        f"2. What is the key nuance or usage difference between their answer and the correct one?\n"
+        f"3. Are they likely confusing this with {confusion_label}? If so, give a quick tip to tell them apart.\n"
+        "\nWrite in plain English. Be direct, specific, and practical."
+    )
+
+    try:
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=anthropic_key)
+        message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return {"feedback": message.content[0].text.strip()}
+    except Exception as e:
+        log.warning("bunpro_analyze failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/bunpro/reviews/{review_id}/update")
+async def bunpro_update_review(review_id: int, body: BunproUpdateBody) -> dict:
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            f"{BUNPRO_API_BASE}/reviews/{review_id}/update",
+            headers=_bunpro_headers(),
+            json={
+                "review_session_id": body.review_session_id,
+                "correct": body.correct,
+                "fsrs_input": None,
+                "loaded_review_ids": None,
+                "loaded_ghost_review_ids": None,
+                "loaded_self_study_review_ids": None,
+                "deck_id": None,
+                "only_review": None,
+            },
+        )
+        if not r.is_success:
+            raise HTTPException(status_code=r.status_code, detail=r.text)
+        return r.json() or {} if r.content else {}
+
+
 if __name__ == '__main__':
     import uvicorn
     port = int(os.getenv('PORT', 8000))

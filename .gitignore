@@ -20,6 +20,9 @@ frontend/.vite/
 # Vite / PWA
 frontend/dev-dist/
 
+# HAR files (contain auth tokens / session data)
+*.har
+
 # OS
 .DS_Store
 Thumbs.db
