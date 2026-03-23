@@ -97,6 +97,7 @@ export default function BunproQuizPage() {
   const [hintLevel, setHintLevel] = useState(0) // 0=none 1=translation 2=nuance 3=nuance_translation
   const [showAnswer, setShowAnswer] = useState(false)
   const [aiFeedback, setAiFeedback] = useState(null) // null | 'loading' | string
+  const [questionKey, setQuestionKey] = useState(0)
   const lastAnswerRef = useRef(null)
 
   const inputRef = useRef(null)
@@ -153,6 +154,7 @@ export default function BunproQuizPage() {
       } else {
         setCurrentItem(data.items[0])
         setDone(false)
+        setQuestionKey(k => k + 1)
       }
     } catch (err) {
       showToast(`Failed to load: ${err.message}`)
@@ -163,9 +165,9 @@ export default function BunproQuizPage() {
 
   useEffect(() => { fetchNext() }, [])
 
-  // Bind wanakana on new item
+  // Bind wanakana and focus on each new question
   useEffect(() => {
-    if (!inputRef.current || answerState !== 'idle') return
+    if (!inputRef.current) return
     const el = inputRef.current
     el.value = ''
     wanakana.bind(el, { IMEMode: true })
@@ -177,7 +179,7 @@ export default function BunproQuizPage() {
         wanakanaRef.current = null
       }
     }
-  }, [currentItem?.review_id])
+  }, [questionKey])
 
   // Re-focus when returning to idle (undo)
   useEffect(() => {
@@ -250,14 +252,22 @@ export default function BunproQuizPage() {
         body: JSON.stringify({
           review_session_id: reviewSessionId,
           correct: answerState === 'correct',
+          ...(answerState === 'incorrect' && lastAnswerRef.current
+            ? { incorrect_answer: lastAnswerRef.current }
+            : {}),
         }),
       })
-      if (!r.ok) showToast(`Submit failed: HTTP ${r.status}`)
+      if (!r.ok) {
+        showToast(`Failed to save — answer not submitted (HTTP ${r.status})`)
+        setSubmitting(false)
+        return
+      }
     } catch (err) {
-      showToast(`Submit failed: ${err.message}`)
-    } finally {
+      showToast(`Failed to save — answer not submitted (${err.message})`)
       setSubmitting(false)
+      return
     }
+    setSubmitting(false)
     setAnswered(n => n + 1)
     if (audioRef.current) {
       audioRef.current.pause()

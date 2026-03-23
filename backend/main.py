@@ -641,6 +641,23 @@ async def bunpro_queue() -> dict:
         data = r.json()
         session_id = data.get("review_session_id")
         attempts = data.get("pending_attempt", [])
+        wrapups = data.get("pending_wrapup", [])
+
+        # If the session is stale (all items answered, nothing left to attempt),
+        # close it by fetching the summary, then re-fetch a fresh session.
+        if not attempts and wrapups and session_id:
+            await client.get(
+                f"{BUNPRO_API_BASE}/summary/last_session",
+                headers=_bunpro_headers(),
+                params={"review_session_id": session_id},
+            )
+            r2 = await client.get(f"{BUNPRO_API_BASE}/reviews/quiz_index", headers=_bunpro_headers())
+            if r2.is_success:
+                data = r2.json()
+                session_id = data.get("review_session_id")
+                attempts = data.get("pending_attempt", [])
+                wrapups = data.get("pending_wrapup", [])
+
         items = [_parse_bunpro_item(a) for a in attempts]
         items = [i for i in items if i is not None]
         return {"review_session_id": session_id, "items": items}
@@ -649,6 +666,7 @@ async def bunpro_queue() -> dict:
 class BunproUpdateBody(BaseModel):
     review_session_id: int
     correct: bool
+    incorrect_answer: str | None = None
 
 
 class BunproAnalyzeBody(BaseModel):
@@ -721,6 +739,7 @@ async def bunpro_update_review(review_id: int, body: BunproUpdateBody) -> dict:
             json={
                 "review_session_id": body.review_session_id,
                 "correct": body.correct,
+                **({"incorrect_answer": body.incorrect_answer} if body.incorrect_answer else {}),
                 "fsrs_input": None,
                 "loaded_review_ids": None,
                 "loaded_ghost_review_ids": None,
