@@ -252,6 +252,9 @@ export default function QuizPage({ mode }) {
   // Tracks phase + incorrect counts for items re-queued after a wrong answer
   const savedItemStateRef = React.useRef({})
 
+  // Tracks assignment_ids completed this session so refetches don't re-show them
+  const completedIdsRef = React.useRef(new Set())
+
   // Lessons only: batch learning before quizzing
   const [lessonBatchPhase, setLessonBatchPhase] = useState('learning') // 'learning' | 'quizzing'
   const [lessonBatchStart, setLessonBatchStart] = useState(0)
@@ -309,14 +312,18 @@ export default function QuizPage({ mode }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json()
 
-      if (!data.length) {
+      const fresh = isRefetch
+        ? data.filter(a => !completedIdsRef.current.has(a.assignment_id))
+        : data
+
+      if (!fresh.length) {
         setSessionDone(true)
         setLoading(false)
         setFetchingMore(false)
         return
       }
 
-      const ordered = mode === 'lessons' ? data : shuffle(data)
+      const ordered = mode === 'lessons' ? fresh : shuffle(fresh)
       setAssignments(ordered)
       setCurrentIdx(0)
       setPhase('meaning')
@@ -650,6 +657,7 @@ export default function QuizPage({ mode }) {
         setCorrectAnswer('')
         setUndoSnapshot(null)
       } else {
+        completedIdsRef.current.add(currentItem.assignment_id)
         submitReview(currentItem.assignment_id, incorrectMeaning, incorrectReading)
         setCompleted(prev => prev + 1)
         advanceToNext()
